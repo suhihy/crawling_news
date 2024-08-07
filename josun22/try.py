@@ -19,7 +19,7 @@ service = Service(driver_path)
 driver = webdriver.Chrome(service=service, options=options)
 
 contents = []
-image_urls = []
+publish_dates = []
 
 # articles.json에서 링크를 읽어오기
 with open('articles.json', 'r', encoding='utf-8') as f:
@@ -43,39 +43,33 @@ for link_url in link_urls:
     if not content_found:
         contents.append('')  # 내용을 찾지 못한 경우 빈 문자열 추가
 
-    # 이미지 추출
-    image_elements = driver.find_elements(By.CSS_SELECTOR, '._LAZY_LOADING._LAZY_LOADING_INIT_HIDE')
-    for img in image_elements:
-        src = img.get_attribute('src')
-        if src and src.startswith('http'):
-            image_urls.append(src)
+    # 발행 날짜 추출
+    date_found = False
+    for _ in range(10):  # 최대 10번 시도
+        date_elements = driver.find_elements(By.CSS_SELECTOR, 'span.media_end_head_info_datestamp_time._ARTICLE_DATE_TIME')
+        if date_elements:
+            publish_dates.append(date_elements[0].text.strip())
+            date_found = True
+            break
+        time.sleep(1)  # 1초 대기 후 다시 시도
+    
+    if not date_found:
+        publish_dates.append('')
 
 driver.quit()
 
-# 기사 내용 CSV 파일로 저장
-csv_path_contents = 'contents.csv'
-with open(csv_path_contents, mode='w', newline='', encoding='utf-8') as file:
+# 기사 내용과 발행 날짜를 합쳐서 CSV 파일로 저장
+csv_path = 'articles2.csv'
+with open(csv_path, mode='w', newline='', encoding='utf-8') as file:
     writer = csv.writer(file)
-    writer.writerow(['content'])
-    for content in contents:
-        writer.writerow([content])
+    writer.writerow(['content', 'publish_date'])
+    for content, date in zip(contents, publish_dates):
+        writer.writerow([content, date])
 
-# 기사 내용 JSON 파일로 저장
-json_path_contents = 'contents.json'
-with open(json_path_contents, mode='w', encoding='utf-8') as file:
-    json.dump({'contents': contents}, file, ensure_ascii=False, indent=4)
+# 기사 내용과 발행 날짜를 합쳐서 JSON 파일로 저장
+json_path = 'articles2.json'
+with open(json_path, mode='w', encoding='utf-8') as file:
+    articles = [{'content': content, 'publish_date': date} for content, date in zip(contents, publish_dates)]
+    json.dump({'articles': articles}, file, ensure_ascii=False, indent=4)
 
-# 이미지 URL CSV 파일로 저장
-csv_path_images = 'image_urls.csv'
-with open(csv_path_images, mode='w', newline='', encoding='utf-8') as file:
-    writer = csv.writer(file)
-    writer.writerow(['image_url'])
-    for img_url in image_urls:
-        writer.writerow([img_url])
-
-# 이미지 URL JSON 파일로 저장
-json_path_images = 'image_urls.json'
-with open(json_path_images, mode='w', encoding='utf-8') as file:
-    json.dump({'image_urls': image_urls}, file, ensure_ascii=False, indent=4)
-
-print("기사 내용과 이미지 URL이 CSV 및 JSON 파일로 저장되었습니다.")
+print("기사 내용과 발행 날짜 및 시간이 CSV와 JSON 파일로 저장되었습니다.")
